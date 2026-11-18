@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f5f3ed">
+<title>Simple 簡記｜安裝診斷</title>
+<style>
+body{font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;background:#f6f0e8;color:#554b4c;margin:0;padding:20px;line-height:1.6}
+main{max-width:680px;margin:auto;background:#fffaf4;border:1px solid #eadbd7;border-radius:20px;padding:20px}
+h1{font-size:22px;margin-top:0} .item{padding:12px 0;border-bottom:1px solid #eadbd7}
+.status{font-weight:700} .ok{color:#28794b}.bad{color:#b64c4c}.wait{color:#98742e}
+small{color:#817579}button{background:#87966f;color:white;border:0;border-radius:10px;padding:12px 16px;font:inherit;margin-top:16px}
+code{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<main>
+<h1>Simple 簡記｜安裝診斷</h1>
+<p>這個頁面只檢查網站安裝條件，不會讀取或上傳你的收支資料。</p>
+<div id="results">正在檢查，請稍候……</div>
+<button onclick="location.reload()">重新檢查</button>
+<p><small>檢查完成後，請把整個畫面截圖傳回 ChatGPT。</small></p>
+</main>
+<script>
+const root = new URL("./", location.href);
+const rows = [];
+function add(label, state, detail="") {
+  rows.push(`<div class="item"><div>${label}：<span class="status ${state}">${state==="ok"?"正常":state==="bad"?"有問題":"檢查中"}</span></div><small>${detail}</small></div>`);
+  document.getElementById("results").innerHTML = rows.join("");
+}
+async function check() {
+  add("網站安全連線", location.protocol==="https:"?"ok":"bad", location.origin);
+  let manifest;
+  try {
+    const r = await fetch(new URL("manifest.webmanifest", root), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    manifest = await r.json();
+    const valid = !!(manifest.name && manifest.start_url && manifest.display && Array.isArray(manifest.icons) && manifest.icons.length);
+    add("Manifest 讀取", valid?"ok":"bad", valid?`名稱：${manifest.name}；顯示模式：${manifest.display}`:"必要欄位不完整");
+  } catch(e) {
+    add("Manifest 讀取","bad",String(e));
+  }
+  if (manifest && Array.isArray(manifest.icons)) {
+    for (const icon of manifest.icons) {
+      try {
+        const u = new URL(icon.src, root);
+        const r = await fetch(u, {cache:"no-store"});
+        if (!r.ok) throw new Error("HTTP "+r.status);
+        add("圖示 "+(icon.sizes||icon.src),"ok",icon.src);
+      } catch(e) { add("圖示 "+(icon.sizes||icon.src),"bad",String(e)); }
+    }
+  }
+  if (!("serviceWorker" in navigator)) {
+    add("Service Worker 支援","bad","此瀏覽器不支援 Service Worker");
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(root.href);
+    if (!reg) {
+      add("Service Worker 註冊","bad","目前沒有找到註冊紀錄；請確認主頁是否曾完整載入");
+      return;
+    }
+    add("Service Worker 註冊","ok",`scope：${reg.scope}`);
+    const active = reg.active || reg.waiting || reg.installing;
+    add("Service Worker 狀態",active?"ok":"bad",active?`state：${active.state}`:"沒有 active / waiting / installing worker");
+    add("目前頁面受控",navigator.serviceWorker.controller?"ok":"wait",navigator.serviceWorker.controller?"目前頁面已由 Service Worker 控制":"診斷頁可能是在註冊前開啟；稍後重新檢查一次");
+  } catch(e) {
+    add("Service Worker 註冊","bad",String(e));
+  }
+}
+check();
+</script>
+</body>
+</html>
