@@ -1,4 +1,5 @@
 
+
 name: Build Simple Jianji Android APK
 
 on:
@@ -23,17 +24,13 @@ jobs:
         with:
           node-version: 22
 
-            - name: Set up Java
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
 
       - name: Prepare web assets
-        run: |
-          mkdir -p www
-          cp index.html www/index.html
-          cp appearance-2-1.js www/appearance-2-1.js
         run: |
           mkdir -p www
           cp index.html www/index.html
