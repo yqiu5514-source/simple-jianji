@@ -72,17 +72,18 @@ jobs:
             UNSIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
           fi
 
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -v 4 "$UNSIGNED_APK" "$RUNNER_TEMP/aligned.apk"
-"$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
-  --ks "$KEYSTORE" \
-  --ks-type JKS \
-  --ks-key-alias simple-jianji \
+                    "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -v 4 "$UNSIGNED_APK" "$RUNNER_TEMP/aligned.apk"
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$KEYSTORE" \
+            --ks-type JKS \
+            --ks-key-alias simple-jianji \
             --ks-pass env:KEYSTORE_PASSWORD \
             --key-pass env:KEY_PASSWORD \
             --out "$RUNNER_TEMP/simple-jianji-release.apk" \
             "$RUNNER_TEMP/aligned.apk"
 
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/simple-jianji-release.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$RUNNER_TEMP/simple-jianji-release.apk" --verbose --print-certs "$RUNNER_TEMP/simple-jianji-release.apk"
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
