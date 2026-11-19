@@ -1,5 +1,4 @@
 
-
 name: Build Simple Jianji Android APK
 
 on:
@@ -30,6 +29,13 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
       - name: Prepare web assets
         run: |
           mkdir -p www
@@ -45,16 +51,47 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Upload APK
+      - name: Sign release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+
+          KEYSTORE="$RUNNER_TEMP/simple-jianji-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+
+          UNSIGNED_APK="$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*unsigned*.apk' -print -quit)"
+
+          if [ -z "$UNSIGNED_APK" ]; then
+            UNSIGNED_APK="android/app/build/outputs/apk/release/app-release.apk"
+          fi
+
+          test -f "$UNSIGNED_APK"
+
+          zipalign -f -v 4 "$UNSIGNED_APK" "$RUNNER_TEMP/aligned.apk"
+
+          apksigner sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias simple-jianji \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out "$RUNNER_TEMP/simple-jianji-release.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+
+          apksigner verify --verbose --print-certs "$RUNNER_TEMP/simple-jianji-release.apk"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-jianji-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: simple-jianji-release-apk
+          path: ${{ runner.temp }}/simple-jianji-release.apk
           if-no-files-found: error
           retention-days: 14
